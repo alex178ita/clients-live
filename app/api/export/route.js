@@ -19,6 +19,7 @@ const COLUMNS = [
   { header: 'Total won amount', key: 'totalWonAmount', width: 18 },
   { header: 'Licence deals', key: 'licenceDeals', width: 13 },
   { header: 'Licence lost', key: 'lostLabel', width: 13 },
+  { header: 'Expired', key: 'expiredLabel', width: 10 },
   { header: 'Domain checked', key: 'domain', width: 36 },
   { header: 'Domain from', key: 'domainSource', width: 13 },
   { header: 'Checked from', key: 'checkedFrom', width: 16 },
@@ -91,6 +92,7 @@ export async function POST(request) {
       totalWonAmount: row.totalWonAmount || 0,
       licenceDeals: row.licenceDeals || 0,
       lostLabel: row.lost ? 'Yes' : 'No',
+      expiredLabel: row.expired ? 'Yes' : 'No',
       domain: row.domain || '',
       domainSource: row.domainSource || '',
       checkedFrom:
@@ -118,6 +120,7 @@ export async function POST(request) {
     added.getCell('amount').numFmt = '#,##0.00';
     added.getCell('totalWonAmount').numFmt = '#,##0.00';
     added.getCell('lostLabel').font = { color: { argb: row.lost ? RED : 'FF333333' } };
+    added.getCell('expiredLabel').font = { color: { argb: row.expired ? AMBER : 'FF333333' } };
   }
 
   sheet.autoFilter = { from: { row: 5, column: 1 }, to: { row: 5, column: COLUMNS.length } };

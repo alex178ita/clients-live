@@ -20,6 +20,7 @@ const COLUMNS = [
   { key: 'totalWonAmount', label: 'Total won', numeric: true },
   { key: 'licenceDeals', label: 'Deals', numeric: true },
   { key: 'lost', label: 'Licence lost' },
+  { key: 'expired', label: 'Expired' },
   { key: 'domain', label: 'Domain checked' }
 ];
 
@@ -77,6 +78,18 @@ function shortReason(reason) {
 
 const LOCAL_STALE_DAYS = Number(process.env.NEXT_PUBLIC_LOCAL_STALE_DAYS || 3);
 
+// The path of the URL that actually answered, when it is not the bare root.
+function probedPath(row) {
+  const url = row && row.live && row.live.finalUrl;
+  if (!url) return '';
+  try {
+    const { pathname } = new URL(url);
+    return pathname && pathname !== '/' ? pathname : '';
+  } catch (err) {
+    return '';
+  }
+}
+
 function daysSince(iso) {
   if (!iso) return null;
   const then = new Date(iso).getTime();
@@ -109,6 +122,10 @@ export default function Page() {
   const [channelFilter, setChannelFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [lostFilter, setLostFilter] = useState('all');
+  // Opens on "no": a licence that ran out is not a client whose site anyone
+  // expects to find Kleecks on, and leaving them in makes the offline count
+  // read like a fleet of failures. One click brings them back.
+  const [expiredFilter, setExpiredFilter] = useState('no');
   const [sourceFilter, setSourceFilter] = useState('all');
   const [yearFrom, setYearFrom] = useState('');
   const [yearTo, setYearTo] = useState('');
@@ -126,7 +143,7 @@ export default function Page() {
       .catch(() => setAuthorised(false));
   }, []);
 
-  const runProbes = useCallback(async (list, force) => {
+  const runProbes = useCallback(async (list, force, since) => {
     setProbing(true);
     setProbeDone(0);
     const batches = chunk(list.map((row) => row.key), BATCH_SIZE);
@@ -141,7 +158,7 @@ export default function Page() {
           const res = await fetch('/api/live', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keys: batches[index], force })
+            body: JSON.stringify({ keys: batches[index], force, since })
           });
           const json = await res.json();
           if (json.results) setLive((current) => ({ ...current, ...json.results }));
@@ -168,7 +185,7 @@ export default function Page() {
       setFetchedAt(json.fetchedAt);
       setLocalCheck(json.localCheck || null);
       setLoadingCrm(false);
-      await runProbes(json.rows || [], force);
+      await runProbes(json.rows || [], force, Date.parse(json.fetchedAt) || 0);
     } catch (error) {
       setLoadError(String(error.message || error));
       setLoadingCrm(false);
@@ -205,7 +222,9 @@ export default function Page() {
         live: result,
         status,
         statusRank: statusRank(status),
-        alert: Boolean(row.lost && status === 'live')
+        // Kleecks still answering on a site whose licence is over — lost or
+        // simply expired — is the anomaly the triangle is there to catch.
+        alert: Boolean((row.lost || row.expired) && status === 'live')
       };
     });
   }, [rows, live]);
@@ -248,6 +267,8 @@ export default function Page() {
       if (statusFilter !== 'all' && row.status !== statusFilter) return false;
       if (lostFilter === 'yes' && !row.lost) return false;
       if (lostFilter === 'no' && row.lost) return false;
+      if (expiredFilter === 'yes' && !row.expired) return false;
+      if (expiredFilter === 'no' && row.expired) return false;
       if (sourceFilter !== 'all' && row.domainSource !== sourceFilter) return false;
 
       if (from || to) {
@@ -262,7 +283,7 @@ export default function Page() {
       }
       return true;
     });
-  }, [decorated, search, channelFilter, statusFilter, lostFilter, sourceFilter, yearFrom, yearTo]);
+  }, [decorated, search, channelFilter, statusFilter, lostFilter, expiredFilter, sourceFilter, yearFrom, yearTo]);
 
   const sorted = useMemo(() => {
     const list = [...filtered];
@@ -271,9 +292,9 @@ export default function Page() {
     list.sort((a, b) => {
       let x = a[key];
       let y = b[key];
-      if (key === 'lost') {
-        x = a.lost ? 1 : 0;
-        y = b.lost ? 1 : 0;
+      if (key === 'lost' || key === 'expired') {
+        x = a[key] ? 1 : 0;
+        y = b[key] ? 1 : 0;
       }
       if (x === null || x === undefined || x === '') return 1;
       if (y === null || y === undefined || y === '') return -1;
@@ -320,6 +341,7 @@ export default function Page() {
               channelFilter !== 'all' ? `channel ${channelFilter}` : null,
               statusFilter !== 'all' ? `status ${statusFilter}` : null,
               lostFilter !== 'all' ? `licence lost ${lostFilter}` : null,
+              expiredFilter !== 'all' ? `expired ${expiredFilter}` : null,
               search ? `search "${search}"` : null
             ]
               .filter(Boolean)
@@ -460,6 +482,15 @@ export default function Page() {
           </div>
 
           <div className="field">
+            <label htmlFor="expired">Expired</label>
+            <select id="expired" value={expiredFilter} onChange={(event) => setExpiredFilter(event.target.value)}>
+              <option value="no">Hide expired</option>
+              <option value="all">All</option>
+              <option value="yes">Only expired</option>
+            </select>
+          </div>
+
+          <div className="field">
             <label htmlFor="source">Domain from</label>
             <select id="source" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
               <option value="all">All</option>
@@ -567,7 +598,16 @@ export default function Page() {
                 <tr key={row.key} className={row.alert ? 'alarm' : undefined}>
                   <td>
                     {row.alert ? (
-                      <span className="alarm-mark" title="Licence flagged as lost but Kleecks is still live on the site">▲</span>
+                      <span
+                        className="alarm-mark"
+                        title={
+                          row.lost
+                            ? 'Licence flagged as lost but Kleecks is still live on the site'
+                            : 'Licence expired and not renewed, but Kleecks is still live on the site'
+                        }
+                      >
+                        ▲
+                      </span>
                     ) : null}
                   </td>
                   <td className={`client ${row.status}`}>
@@ -581,6 +621,18 @@ export default function Page() {
                     >
                       {row.clientName}
                     </a>
+                    {row.partnerAsClient ? (
+                      <span
+                        className="src guess"
+                        title={
+                          'This account is a partner on other deals, so it is showing here as a client of its own. ' +
+                          'Usually the last licence deal is missing Contact Holder = Partner or the Final Client, ' +
+                          'and the site being checked is the partner\'s, not the client\'s.'
+                        }
+                      >
+                        partner?
+                      </span>
+                    ) : null}
                   </td>
                   <td>
                     <span
@@ -636,11 +688,29 @@ export default function Page() {
                   <td className="num">{formatMoney(row.totalWonAmount)}</td>
                   <td className="num">{row.licenceDeals}</td>
                   <td className={row.lost ? 'lost-yes' : 'lost-no'}>{row.lost ? 'Yes' : 'No'}</td>
+                  <td
+                    className={row.expired ? 'expired-yes' : 'lost-no'}
+                    title={row.expired ? 'The last licence deal ran to its natural end and was not renewed' : undefined}
+                  >
+                    {row.expired ? 'Yes' : 'No'}
+                  </td>
                   <td>
                     {row.domain ? (
                       <>
-                        <a className="domain" href={`https://${row.domain}`} target="_blank" rel="noreferrer">
+                        {/* The Website in Zoho often carries a locale path, and
+                            that is where the markers are — a multi-country root
+                            is usually a picker. Show what was actually fetched,
+                            not just the host, or a row reading "offline" is
+                            impossible to argue with. */}
+                        <a
+                          className="domain"
+                          href={(row.live && row.live.finalUrl) || `https://${row.domain}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={row.live && row.live.finalUrl ? `Checked: ${row.live.finalUrl}` : undefined}
+                        >
                           {row.domain}
+                          {probedPath(row) ? <span className="path">{probedPath(row)}</span> : null}
                         </a>
                         {SOURCE_BADGE[row.domainSource] ? (
                           <span
@@ -672,6 +742,8 @@ export default function Page() {
             <span>no badge on the domain = read from the CRM; <b>guessed</b> / <b>map</b> = Website still missing in Zoho</span>
             <span><b>via script</b> = the site refuses Vercel, this answer comes from the run on a normal connection</span>
             <span><b>via CRM</b> = nobody could read the site: licence still running and not lost, so live by contract (hollow pill)</span>
+            <span><b>Expired</b> = the last licence ran to its natural end; hidden by default, and ▲ if Kleecks is still up</span>
+            <span><b>partner?</b> = this account is a partner elsewhere: the deal is probably missing Contact Holder or Final Client</span>
             <a className="domain" href="/setup">Zoho connection setup</a>
           </span>
         </div>

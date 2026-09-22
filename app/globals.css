@@ -480,3 +480,9 @@ table.shape td:first-child { color: var(--ink); width: 190px; }
 
 .why.crm { color: var(--ink-soft); }
 .pill.crm b { color: var(--ink-soft); }
+
+/* The locale path of the URL actually fetched, next to the host. */
+.path { color: var(--ink-soft); font-weight: 400; }
+
+/* A licence that simply ran out: a fact, not a failure — amber, not red. */
+.expired-yes { color: var(--amber); font-weight: 600; }

@@ -18,9 +18,12 @@ export async function POST(request) {
   const body = await request.json().catch(() => ({}));
   const keys = Array.isArray(body.keys) ? body.keys.slice(0, 40) : [];
   const force = body.force === true;
+  // The CRM read the browser is working from. Anything older than this on this
+  // instance is a stale copy of the client list, domains included.
+  const since = Number(body.since) > 0 ? Number(body.since) : 0;
 
   try {
-    const { rows } = await getRows();
+    const { rows } = await getRows({ minAt: since });
     const byKey = new Map(rows.map((row) => [row.key, row]));
 
     const targets = keys
