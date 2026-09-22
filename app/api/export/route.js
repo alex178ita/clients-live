@@ -51,7 +51,7 @@ export async function POST(request) {
   sheet.getCell('A1').font = { size: 16, bold: true };
 
   sheet.mergeCells('A2:E2');
-  sheet.getCell('A2').value = 'v.0.1 - Beta for testing';
+  sheet.getCell('A2').value = meta.buildStamp || 'Beta for testing';
   sheet.getCell('A2').font = { size: 10, italic: true, color: { argb: 'FF777777' } };
 
   sheet.mergeCells('A3:J3');

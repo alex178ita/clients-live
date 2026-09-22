@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { buildStamp } from '../../lib/build-stamp';
 
 export default function SetupPage() {
   const [authorised, setAuthorised] = useState(null);
@@ -195,7 +196,7 @@ export default function SetupPage() {
       <header className="masthead">
         <img src="/kleecks-logo-white.png" alt="Kleecks" />
         <h1>Setup — Zoho connection</h1>
-        <p className="version">v.0.1 - Beta for testing</p>
+        <p className="version">{buildStamp()}</p>
       </header>
 
       <main className="setup">

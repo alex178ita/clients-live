@@ -97,6 +97,25 @@ Filter the table by **Domain from** to see where each domain came from —
 *Guessed from name* is the list still needing attention, *Fallback map* the ones
 running on an unverified entry.
 
+## A note on the repo
+
+`postcss.config.js` ships on purpose, with no plugins. The repo this is deployed
+from had a leftover config from an earlier scaffold that pulled in `tailwindcss`,
+which this app neither uses nor installs, and the Vercel build failed with
+`Cannot find module 'tailwindcss'` while compiling `app/globals.css`. Unzipping
+these sources over the repo replaces that file. If a build ever fails that way
+again, look for stale `postcss.config.*` or `tailwind.config.*` left behind by a
+previous project.
+
+## Which build am I looking at
+
+The line under the title carries the version from `package.json`, the build time
+and, on Vercel, the commit — `v.0.1.4 - Beta for testing · built 22/09/2026,
+14:34 · a1b2c3d`. Environment variables are baked into a deployment, so a value
+saved on Vercel changes nothing until a redeploy: if that timestamp is older
+than the change you just made, you are looking at the previous build. Bump the
+version in `package.json` when it helps to tell two builds apart.
+
 ## Deployment
 
 1. Push this folder to GitHub, connect the repo to a Vercel project in the

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { buildStamp } from '../lib/build-stamp';
 
 const BATCH_SIZE = 10;
 const PARALLEL_BATCHES = 4;
@@ -283,6 +284,7 @@ export default function Page() {
         body: JSON.stringify({
           rows: sorted,
           meta: {
+            buildStamp: buildStamp(),
             yearFrom: yearFrom || null,
             yearTo: yearTo || null,
             filterNote: [
@@ -368,7 +370,7 @@ export default function Page() {
       <header className="masthead">
         <img src="/kleecks-logo-white.png" alt="Kleecks" />
         <h1>Won Clients &amp; Kleecks Live Status</h1>
-        <p className="version">v.0.1 - Beta for testing</p>
+        <p className="version">{buildStamp()}</p>
       </header>
 
       <main>
