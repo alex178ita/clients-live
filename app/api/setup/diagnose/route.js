@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { isAuthorised } from '../../../../lib/auth';
 import { env, explainRefreshError } from '../../../../lib/zoho';
 import { DATA_CENTRES } from '../../../../lib/zoho-dc';
+import { DEAL_FIELDS } from '../../../../lib/clients';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -61,16 +62,20 @@ export async function GET(request) {
 
     const call = await tryCoql(apiHost, primary.accessToken);
     if (call.ok) {
-      // Same token, one step further: a custom field on Accounts reached
-      // through the lookup. Zoho answers this with 401 INVALID_TOKEN — not a
-      // scope error — when the scopes cover Deals only, which reads exactly
-      // like a dead token. Worth naming explicitly, because it cost an
-      // afternoon once.
-      const lookup = await tryCoql(
-        apiHost,
-        primary.accessToken,
-        'select id, Account_Name.Kleecks_Active from Deals limit 1'
-      );
+      // The query the dashboard actually runs. A single field this token may
+      // not read makes COQL answer 401 INVALID_TOKEN — not a scope error, not
+      // an invalid-column error — so the whole app looks like it has dead
+      // credentials. When that happens, walk the fields one by one and name
+      // the culprit instead of guessing.
+      const real = await tryCoql(apiHost, primary.accessToken, `select ${DEAL_FIELDS} from Deals limit 1`);
+      const badFields = [];
+      if (!real.ok) {
+        for (const field of DEAL_FIELDS.split(',').map((f) => f.trim())) {
+          if (field === 'id') continue;
+          const one = await tryCoql(apiHost, primary.accessToken, `select id, ${field} from Deals limit 1`);
+          if (!one.ok) badFields.push({ field, error: one.error });
+        }
+      }
 
       return NextResponse.json({
         ok: true,
@@ -81,9 +86,10 @@ export async function GET(request) {
         apiHost,
         apiDomain: primary.apiDomain,
         scope: primary.scope,
-        accountsCustomField: lookup.ok
-          ? 'readable — this token can also read custom fields on Accounts'
-          : `not readable (${lookup.error}) — add ZohoCRM.modules.accounts.READ if you ever want it`
+        dashboardQuery: real.ok
+          ? 'ok — the full query the dashboard runs is accepted'
+          : `REFUSED (${real.error})`,
+        refusedFields: badFields.length ? badFields : undefined
       });
     }
 
