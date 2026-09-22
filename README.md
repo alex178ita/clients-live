@@ -132,10 +132,16 @@ the URL, the token and the two log paths, then
 
 ```bash
 cp scripts/com.kleecks.local-check.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.kleecks.local-check.plist
-launchctl start com.kleecks.local-check        # once, now
-tail -f ~/Library/Logs/kleecks-local-check.log
+plutil -lint ~/Library/LaunchAgents/com.kleecks.local-check.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kleecks.local-check.plist
+launchctl kickstart -p gui/$(id -u)/com.kleecks.local-check
+tail -f /tmp/kleecks-local-check.log
 ```
+
+`Load failed: 5: Input/output error` means launchd would not take the file: a
+placeholder left in it, or a log path it cannot write. `plutil -lint` catches the
+first, and the log paths must be absolute — launchd expands neither `~` nor
+`$HOME` in `StandardOutPath`.
 
 Nothing keeps the results fresh while the machine is off, so the dashboard says
 how old they are: past `NEXT_PUBLIC_LOCAL_STALE_DAYS` days (3 by default) the

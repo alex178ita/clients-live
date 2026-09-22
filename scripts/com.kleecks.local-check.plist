@@ -1,18 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Controllo Kleecks live, una volta al giorno alle 7:30, da questo Mac.
+  Daily run of the local check, scheduled with launchd rather than cron.
 
-  DA MODIFICARE: una cosa sola, il token alla riga ProgramArguments.
-  Se la cartella non sta in ~/kleecks/won-clients-live, correggi anche quella.
+  The difference matters here: cron simply skips a run if the Mac was asleep or
+  off at that minute, while launchd remembers a missed StartCalendarInterval and
+  fires it shortly after the machine wakes or next logs in. So a laptop that was
+  shut at 07:30 still gets its run when it is opened.
 
-  Installazione:
-    cp com.kleecks.local-check.plist ~/Library/LaunchAgents/
-    launchctl load ~/Library/LaunchAgents/com.kleecks.local-check.plist
-    launchctl start com.kleecks.local-check
-    tail -f ~/Library/Logs/kleecks-local-check.log
+  Install:
+    1. Edit the ProgramArguments line below: the folder (run `pwd` inside it),
+       the URL and the token. Nothing else has to change.
+    2. cp scripts/com.kleecks.local-check.plist ~/Library/LaunchAgents/
+    3. plutil -lint ~/Library/LaunchAgents/com.kleecks.local-check.plist
+    4. launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kleecks.local-check.plist
+    5. launchctl kickstart -p gui/$(id -u)/com.kleecks.local-check    # run it now
 
-  Per toglierlo:
-    launchctl unload ~/Library/LaunchAgents/com.kleecks.local-check.plist
+  Check it:      launchctl list | grep kleecks
+  Read the log:  tail -f /tmp/kleecks-local-check.log
+  Remove it:     launchctl bootout gui/$(id -u)/com.kleecks.local-check
+
+  "Load failed: 5: Input/output error" means the plist is malformed or one of
+  the paths below cannot be written — check them with plutil -lint first.
 -->
 <plist version="1.0">
 <dict>
@@ -23,10 +31,11 @@
   <array>
     <string>/bin/bash</string>
     <string>-lc</string>
-    <string>cd "$HOME/kleecks/won-clients-live" &amp;&amp; APP_URL="https://clients-live.vercel.app" LOCAL_CHECK_TOKEN="hghgfhjghjjghk" node scripts/local-check.cjs --verbose</string>
+    <!-- REPLACE: the folder holding this project, and the two values. -->
+    <string>cd "$HOME/kleecks/won-clients-live" &amp;&amp; APP_URL="https://clients-live.vercel.app" LOCAL_CHECK_TOKEN="REPLACE_WITH_YOUR_TOKEN" node scripts/local-check.cjs --verbose</string>
   </array>
 
-  <!-- Ogni giorno alle 7:30. Se il Mac dorme, launchd recupera al risveglio. -->
+  <!-- 07:30 every day. Add more <dict> entries for more runs per day. -->
   <key>StartCalendarInterval</key>
   <array>
     <dict>
@@ -35,14 +44,18 @@
     </dict>
   </array>
 
-  <!-- Gira anche a ogni login. -->
+  <!-- Also run once whenever the agent is loaded, i.e. at login. -->
   <key>RunAtLoad</key>
   <true/>
 
+  <!-- Absolute paths only: launchd expands neither ~ nor $HOME here, and a
+       path it cannot write to makes the whole job fail to load with
+       "Load failed: 5: Input/output error". /tmp always exists; point it at
+       ~/Library/Logs by writing the path out in full if you prefer. -->
   <key>StandardOutPath</key>
-  <string>/Users/alex178ita/Library/Logs/kleecks-local-check.log</string>
+  <string>/tmp/kleecks-local-check.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/alex178ita/Library/Logs/kleecks-local-check.log</string>
+  <string>/tmp/kleecks-local-check.log</string>
 
   <key>ProcessType</key>
   <string>Background</string>
