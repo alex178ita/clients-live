@@ -465,3 +465,8 @@ table.shape td:first-child { color: var(--ink); width: 190px; }
 .why.local { color: var(--accent); }
 
 .pill.script b { color: var(--accent); }
+
+.why.local.stale { color: var(--amber); }
+
+.pill.stale { border-color: #f0d9ae; background: var(--amber-soft); color: var(--amber); }
+.pill.stale b { color: var(--amber); }

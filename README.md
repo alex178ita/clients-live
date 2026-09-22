@@ -118,15 +118,35 @@ apart.
 
 ### Running it daily
 
-On a Mac, with `crontab -e`, at 07:30 every day:
+Keep the folder: the script lives in it and loads `lib/livecheck.js` from it.
+Deleting it after uploading to GitHub leaves nothing to run.
 
-```
-30 7 * * * cd /path/to/won-clients-live && APP_URL=https://your-deployment.vercel.app LOCAL_CHECK_TOKEN=the-same-string /usr/local/bin/node scripts/local-check.cjs >> /tmp/kleecks-local-check.log 2>&1
+Use **launchd**, not cron. Cron skips a run whose minute passed while the Mac was
+asleep or off; launchd remembers a missed `StartCalendarInterval` and fires it
+shortly after the machine wakes, and `RunAtLoad` makes it run at login too. For a
+laptop that is closed at night this is the difference between a daily check and
+no check at all.
+
+`scripts/com.kleecks.local-check.plist` is ready to fill in: replace the folder,
+the URL, the token and the two log paths, then
+
+```bash
+cp scripts/com.kleecks.local-check.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.kleecks.local-check.plist
+launchctl start com.kleecks.local-check        # once, now
+tail -f ~/Library/Logs/kleecks-local-check.log
 ```
 
-Use `which node` for the real path — cron does not read your shell profile. The
-machine has to be awake at that hour; if that is unreliable, run it by hand when
-it matters, the dashboard always says how old the last run is.
+Nothing keeps the results fresh while the machine is off, so the dashboard says
+how old they are: past `NEXT_PUBLIC_LOCAL_STALE_DAYS` days (3 by default) the
+summary pill turns amber with the age, and every **via script** badge carries it.
+An old answer is still shown — it is the best evidence available — but it stops
+looking current.
+
+If the check has to run whether or not that Mac is awake, put the folder on a
+machine that is always on and sits on the same kind of connection: an office Mac
+mini, a NAS with Node. A cloud VM does not work — it is a datacentre IP again,
+which is the problem this whole mechanism exists to route around.
 
 ## Domains
 

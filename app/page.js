@@ -75,6 +75,15 @@ function shortReason(reason) {
   return 'unreachable';
 }
 
+const LOCAL_STALE_DAYS = Number(process.env.NEXT_PUBLIC_LOCAL_STALE_DAYS || 3);
+
+function daysSince(iso) {
+  if (!iso) return null;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return null;
+  return Math.floor((Date.now() - then) / 86400000);
+}
+
 function chunk(list, size) {
   const out = [];
   for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
@@ -284,6 +293,8 @@ export default function Page() {
     const fromScript = filtered.filter((r) => r.live && r.live.source === 'local').length;
     return { total, liveCount, offline, unknown, alarms, lost, fromScript };
   }, [filtered]);
+
+  const localAge = daysSince(localCheck && localCheck.runAt);
 
   function toggleSort(key, sortable) {
     if (sortable === false) return;
@@ -502,7 +513,15 @@ export default function Page() {
             </span>
           ) : null}
           {localCheck && localCheck.runAt ? (
-            <span className="pill" title={localCheck.source || ''}>
+            <span
+              className={`pill ${localAge !== null && localAge > LOCAL_STALE_DAYS ? 'stale' : ''}`}
+              title={
+                `${localCheck.source || 'local script'} — the rows marked "via script" are as old as this run` +
+                (localAge !== null && localAge > LOCAL_STALE_DAYS
+                  ? `\nRun it again: nothing has been posted for ${localAge} days.`
+                  : '')
+              }
+            >
               local check {new Date(localCheck.runAt).toLocaleString('en-GB', {
                 timeZone: 'Europe/Rome',
                 day: '2-digit',
@@ -510,6 +529,7 @@ export default function Page() {
                 hour: '2-digit',
                 minute: '2-digit'
               })}
+              {localAge !== null && localAge > LOCAL_STALE_DAYS ? <b> · {localAge} days old</b> : null}
             </span>
           ) : localCheck && localCheck.enabled ? (
             <span className="pill" title="No run received yet">local check never run</span>
@@ -571,14 +591,14 @@ export default function Page() {
                     ) : null}
                     {row.live && row.live.source === 'local' ? (
                       <span
-                        className="why local"
+                        className={`why local${localAge !== null && localAge > LOCAL_STALE_DAYS ? ' stale' : ''}`}
                         title={
                           `Checked from ${row.live.sourceLabel || 'the local script'}` +
                           (row.live.runAt ? ` on ${new Date(row.live.runAt).toLocaleString('en-GB', { timeZone: 'Europe/Rome' })}` : '') +
                           (row.live.blockedReason ? `\nFrom Vercel: ${row.live.blockedReason}` : '')
                         }
                       >
-                        via script
+                        via script{localAge !== null && localAge > LOCAL_STALE_DAYS ? ` · ${localAge}d` : ''}
                       </span>
                     ) : null}
                   </td>

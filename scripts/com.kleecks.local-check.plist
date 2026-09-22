@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Controllo Kleecks live, una volta al giorno alle 7:30, da questo Mac.
+
+  DA MODIFICARE: una cosa sola, il token alla riga ProgramArguments.
+  Se la cartella non sta in ~/kleecks/won-clients-live, correggi anche quella.
+
+  Installazione:
+    cp com.kleecks.local-check.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.kleecks.local-check.plist
+    launchctl start com.kleecks.local-check
+    tail -f ~/Library/Logs/kleecks-local-check.log
+
+  Per toglierlo:
+    launchctl unload ~/Library/LaunchAgents/com.kleecks.local-check.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.kleecks.local-check</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-lc</string>
+    <string>cd "$HOME/kleecks/won-clients-live" &amp;&amp; APP_URL="https://clients-live.vercel.app" LOCAL_CHECK_TOKEN="hghgfhjghjjghk" node scripts/local-check.cjs --verbose</string>
+  </array>
+
+  <!-- Ogni giorno alle 7:30. Se il Mac dorme, launchd recupera al risveglio. -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict>
+      <key>Hour</key><integer>7</integer>
+      <key>Minute</key><integer>30</integer>
+    </dict>
+  </array>
+
+  <!-- Gira anche a ogni login. -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/alex178ita/Library/Logs/kleecks-local-check.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/alex178ita/Library/Logs/kleecks-local-check.log</string>
+
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>
