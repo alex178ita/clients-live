@@ -32,6 +32,17 @@ channel, status, licence lost, how the domain was resolved) and exportable to
 Excel — the export contains exactly the rows you are looking at, in the order you
 sorted them, with the same colours.
 
+The table opens filtered on the **current year at both ends**, since the licences
+that matter are the ones running now; **All years** clears that and every other
+filter.
+
+One row per client, keyed on the CRM account id — the Final Client's id for an
+indirect deal. So the same client bought directly and through a partner collapses
+into one row, provided the Final Client lookup points at the same account. If a
+client shows up twice, the indirect deal's Final Client is pointing at a different
+account record (a brand account, say) rather than the one the direct deals use:
+fix the lookup in Zoho and the rows merge, taking any false ▲ with them.
+
 ## How "live" is decided
 
 The server fetches the client's home page with a desktop Chrome user agent and
@@ -67,6 +78,49 @@ back to the root.
 Results are cached server-side for `LIVE_TTL_MINUTES` (3 hours by default), so the
 first visit pays for the probes and the ones after are instant. **Re-check now**
 forces a fresh pass.
+
+## The local check
+
+The answer to `n/d — blocked`: the same check, run from a normal connection,
+posted back to the dashboard. A row reading `live` with a small **via script**
+under it was answered that way, and the summary strip carries the time of the
+last run.
+
+The script only fills the gaps. Where the Vercel probe could read the page its
+answer stands, because it is fresher; the local result replaces only the rows
+that came back `unknown`. Hovering a **via script** row shows what Vercel had
+been told — usually `HTTP 403 — blocked by the site's bot protection`.
+
+### Setting it up
+
+1. In the Vercel dashboard: **Storage → Blob → Create**. Connecting it to the
+   project sets `BLOB_READ_WRITE_TOKEN` on its own.
+2. Add `LOCAL_CHECK_TOKEN` — any long random string; it is the shared secret
+   between the script and the app, and the only thing guarding that endpoint.
+3. Redeploy.
+4. On the machine that will run it, keep a copy of this folder, `npm install`
+   once, then:
+
+```bash
+APP_URL=https://your-deployment.vercel.app LOCAL_CHECK_TOKEN=the-same-string node scripts/local-check.cjs --verbose
+```
+
+`--dry-run` prints the outcome without posting it. The script asks the app which
+clients to check, so the CRM stays the single source of truth for the targets and
+the detection logic is imported from `lib/livecheck.js` — the two can never drift
+apart.
+
+### Running it daily
+
+On a Mac, with `crontab -e`, at 07:30 every day:
+
+```
+30 7 * * * cd /path/to/won-clients-live && APP_URL=https://your-deployment.vercel.app LOCAL_CHECK_TOKEN=the-same-string /usr/local/bin/node scripts/local-check.cjs >> /tmp/kleecks-local-check.log 2>&1
+```
+
+Use `which node` for the real path — cron does not read your shell profile. The
+machine has to be awake at that hour; if that is unreliable, run it by hand when
+it matters, the dashboard always says how old the last run is.
 
 ## Domains
 

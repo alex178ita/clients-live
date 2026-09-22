@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isAuthorised } from '../../../lib/auth';
 import { getRows } from '../../../lib/crmcache';
+import { readLocalChecks, configured as blobConfigured } from '../../../lib/localchecks';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -13,7 +14,7 @@ export async function GET(request) {
   const force = new URL(request.url).searchParams.get('force') === '1';
 
   try {
-    const { rows, fetchedAt, cached } = await getRows({ force });
+    const [{ rows, fetchedAt, cached }, local] = await Promise.all([getRows({ force }), readLocalChecks()]);
     // probeCandidates never leave the server: the live route rebuilds them from
     // the client key, so a forged payload cannot make the app fetch a URL of
     // someone else's choosing.
@@ -21,7 +22,13 @@ export async function GET(request) {
     return NextResponse.json({
       rows: safeRows,
       fetchedAt: new Date(fetchedAt).toISOString(),
-      cached
+      cached,
+      localCheck: {
+        enabled: blobConfigured(),
+        runAt: local.runAt,
+        source: local.source,
+        count: Object.keys(local.results || {}).length
+      }
     });
   } catch (error) {
     return NextResponse.json({ error: String(error.message || error) }, { status: 500 });

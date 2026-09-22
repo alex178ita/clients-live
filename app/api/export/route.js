@@ -21,6 +21,7 @@ const COLUMNS = [
   { header: 'Licence lost', key: 'lostLabel', width: 13 },
   { header: 'Domain checked', key: 'domain', width: 36 },
   { header: 'Domain from', key: 'domainSource', width: 13 },
+  { header: 'Checked from', key: 'checkedFrom', width: 16 },
   { header: 'Signals found', key: 'signals', width: 60 },
   { header: 'Last deal', key: 'lastDealName', width: 42 }
 ];
@@ -92,6 +93,7 @@ export async function POST(request) {
       lostLabel: row.lost ? 'Yes' : 'No',
       domain: row.domain || '',
       domainSource: row.domainSource || '',
+      checkedFrom: row.live && row.live.source === 'local' ? 'local script' : 'Vercel',
       signals: row.live && row.live.signals && row.live.signals.length
         ? row.live.signals.join(' | ')
         : (row.live && row.live.reason) || '',

@@ -461,3 +461,7 @@ table.shape td:first-child { color: var(--ink); width: 190px; }
 .src.guess { background: var(--amber-soft); color: var(--amber); }
 .src.override { background: #eef2fe; color: var(--accent); }
 .src.skipped { background: #eef1f5; color: var(--ink-soft); }
+
+.why.local { color: var(--accent); }
+
+.pill.script b { color: var(--accent); }

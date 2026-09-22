@@ -90,6 +90,7 @@ export default function Page() {
   const [rows, setRows] = useState([]);
   const [live, setLive] = useState({});
   const [fetchedAt, setFetchedAt] = useState(null);
+  const [localCheck, setLocalCheck] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [loadingCrm, setLoadingCrm] = useState(false);
   const [probing, setProbing] = useState(false);
@@ -102,6 +103,7 @@ export default function Page() {
   const [sourceFilter, setSourceFilter] = useState('all');
   const [yearFrom, setYearFrom] = useState('');
   const [yearTo, setYearTo] = useState('');
+  const [yearsPreset, setYearsPreset] = useState(false);
   const [sort, setSort] = useState({ key: 'clientName', dir: 'asc' });
   const [exporting, setExporting] = useState(false);
 
@@ -155,6 +157,7 @@ export default function Page() {
       if (!res.ok) throw new Error(json.error || 'Could not load the CRM data');
       setRows(json.rows || []);
       setFetchedAt(json.fetchedAt);
+      setLocalCheck(json.localCheck || null);
       setLoadingCrm(false);
       await runProbes(json.rows || [], force);
     } catch (error) {
@@ -208,6 +211,19 @@ export default function Page() {
     }
     return Array.from(set).sort((x, y) => x - y);
   }, [rows]);
+
+  // Open on the current year at both ends — the licences that matter are the
+  // ones running now. Applied once, so changing the filter afterwards sticks.
+  useEffect(() => {
+    if (yearsPreset || years.length === 0) return;
+    const current = new Date().getFullYear();
+    const pick = years.includes(current)
+      ? current
+      : years.filter((y) => y <= current).pop() || years[years.length - 1];
+    setYearFrom(String(pick));
+    setYearTo(String(pick));
+    setYearsPreset(true);
+  }, [years, yearsPreset]);
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -265,7 +281,8 @@ export default function Page() {
     const unknown = filtered.filter((r) => r.status === 'unknown').length;
     const alarms = filtered.filter((r) => r.alert).length;
     const lost = filtered.filter((r) => r.lost).length;
-    return { total, liveCount, offline, unknown, alarms, lost };
+    const fromScript = filtered.filter((r) => r.live && r.live.source === 'local').length;
+    return { total, liveCount, offline, unknown, alarms, lost, fromScript };
   }, [filtered]);
 
   function toggleSort(key, sortable) {
@@ -446,6 +463,21 @@ export default function Page() {
           <div className="spacer" />
 
           <div className="actions">
+            <button
+              type="button"
+              onClick={() => {
+                setYearFrom('');
+                setYearTo('');
+                setSearch('');
+                setChannelFilter('all');
+                setStatusFilter('all');
+                setLostFilter('all');
+                setSourceFilter('all');
+              }}
+              title="Show every year and clear the filters"
+            >
+              All years
+            </button>
             <button type="button" onClick={() => loadAll({ force: true })} disabled={probing}>
               {probing ? `Checking ${probeDone}/${rows.length}` : 'Re-check now'}
             </button>
@@ -464,6 +496,24 @@ export default function Page() {
           <span className="pill"><b>{stats.unknown}</b> not reachable</span>
           <span className="pill"><b>{stats.lost}</b> licence lost</span>
           <span className="pill alarm"><b>{stats.alarms}</b> lost but still live</span>
+          {stats.fromScript > 0 ? (
+            <span className="pill script" title="Rows the dashboard could not read itself, answered by the local script">
+              <b>{stats.fromScript}</b> via script
+            </span>
+          ) : null}
+          {localCheck && localCheck.runAt ? (
+            <span className="pill" title={localCheck.source || ''}>
+              local check {new Date(localCheck.runAt).toLocaleString('en-GB', {
+                timeZone: 'Europe/Rome',
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </span>
+          ) : localCheck && localCheck.enabled ? (
+            <span className="pill" title="No run received yet">local check never run</span>
+          ) : null}
         </div>
 
         <div className="table-wrap">
@@ -519,6 +569,18 @@ export default function Page() {
                     {row.status === 'unknown' && row.live && row.live.reason ? (
                       <span className="why">{shortReason(row.live.reason)}</span>
                     ) : null}
+                    {row.live && row.live.source === 'local' ? (
+                      <span
+                        className="why local"
+                        title={
+                          `Checked from ${row.live.sourceLabel || 'the local script'}` +
+                          (row.live.runAt ? ` on ${new Date(row.live.runAt).toLocaleString('en-GB', { timeZone: 'Europe/Rome' })}` : '') +
+                          (row.live.blockedReason ? `\nFrom Vercel: ${row.live.blockedReason}` : '')
+                        }
+                      >
+                        via script
+                      </span>
+                    ) : null}
                   </td>
                   <td>{row.channel}</td>
                   <td>{row.partner || '—'}</td>
@@ -556,11 +618,15 @@ export default function Page() {
         </div>
 
         <div className="foot">
-          <span>CRM data read {fetchedAt ? new Date(fetchedAt).toLocaleString('en-GB', { timeZone: 'Europe/Rome' }) : '—'}.</span>
+          <span>
+            CRM data read {fetchedAt ? new Date(fetchedAt).toLocaleString('en-GB', { timeZone: 'Europe/Rome' }) : '—'} —
+            after editing Zoho press <b>Re-check now</b>, a plain reload may still serve the cached read.
+          </span>
           <span className="legend">
             <span><b>live</b> = x-optimized-by Kleecks header and/or KL-* classes on the body</span>
             <span><b>n/d</b> = the home page could not be read (timeout, bot protection, no domain)</span>
             <span>no badge on the domain = read from the CRM; <b>guessed</b> / <b>map</b> = Website still missing in Zoho</span>
+            <span><b>via script</b> = the site refuses Vercel, this answer comes from the run on a normal connection</span>
             <a className="domain" href="/setup">Zoho connection setup</a>
           </span>
         </div>
