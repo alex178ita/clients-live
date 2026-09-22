@@ -415,3 +415,49 @@ ul.checks li span { color: var(--ink-soft); font-size: 12.5px; }
 @media (max-width: 680px) {
   .grid { grid-template-columns: 1fr; }
 }
+
+.alert.good { background: var(--green-soft); color: var(--green); border: 1px solid #bfe3cd; }
+.alert.good p, .alert.good li { color: #16613a; }
+
+ul.checklist { margin: 10px 0 0; padding-left: 18px; }
+ul.checklist li { margin-bottom: 6px; color: inherit; line-height: 1.5; }
+
+table.shape {
+  margin-top: 12px;
+  border-collapse: collapse;
+  font-size: 12px;
+  width: 100%;
+}
+
+table.shape td {
+  padding: 4px 8px 4px 0;
+  border: none;
+  color: var(--ink-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: nowrap;
+}
+
+table.shape td:first-child { color: var(--ink); width: 190px; }
+
+.why {
+  display: block;
+  font-size: 10.5px;
+  color: var(--amber);
+  margin-top: 2px;
+  letter-spacing: 0.02em;
+}
+
+.src {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
+.src.guess { background: var(--amber-soft); color: var(--amber); }
+.src.override { background: #eef2fe; color: var(--accent); }
+.src.skipped { background: #eef1f5; color: var(--ink-soft); }

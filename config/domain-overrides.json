@@ -1,7 +1,6 @@
 {
-  "_README": "Manual domain map. Key = client name as it shows in the table (case, spaces and punctuation are ignored when matching). Value = the homepage to probe, or \"skip\" to leave the client out of the live check. This file wins over the Website URL on the deal and over the Website on the CRM account, so it is also the place to correct a wrong CRM value. Clients missing from here fall back to the CRM website and then to a domain guessed from the name: the table flags those with a small dot next to the domain, and the 'Domain from' filter lists them.",
+  "_README": "Fallback domain map. The CRM comes first: the Website URL on the deal, then the Website on the account (the Final Client's account for an indirect deal). This file is only used when both are empty, so filling the Website field in Zoho always takes effect on the next read. The one exception is \"skip\", which wins outright and leaves a client out of the live check — use it for holdings and partners with no site of their own. Keys are matched ignoring case, spaces and punctuation. Entries here were proposed by Claude and are not verified: prefer fixing the CRM.",
   "_EXAMPLE_NAME": "https://www.example.com/",
-
   "Admiral Intermediary Services SA": "https://www.conte.it/",
   "ADMIRAL INTERMEDIARY SERVICES S.A.U.": "https://www.qualitasauto.com/",
   "ALITALIA - SOCIETA AEREA ITALIANA S.P.A.": "https://www.ita-airways.com/it_it",
@@ -55,6 +54,5 @@
   "VIRGIN FIBRA S.R.L.": "https://www.virginfibra.it/",
   "WORLD TRIATHLON CORPORATION": "https://www.ironman.com/",
   "Zurich Insurance Group AG": "https://www.zurich.it/",
-
   "dummy": "skip"
 }

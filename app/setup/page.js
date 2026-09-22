@@ -23,6 +23,9 @@ export default function SetupPage() {
 
   const [copied, setCopied] = useState('');
 
+  const [diagnosing, setDiagnosing] = useState(false);
+  const [diagnosis, setDiagnosis] = useState(null);
+
   useEffect(() => {
     fetch('/api/auth')
       .then((r) => r.json())
@@ -59,6 +62,19 @@ export default function SetupPage() {
       setAuthorised(true);
     } else {
       setAuthError('Wrong password.');
+    }
+  }
+
+  async function diagnose() {
+    setDiagnosing(true);
+    setDiagnosis(null);
+    try {
+      const res = await fetch('/api/setup/diagnose');
+      setDiagnosis(await res.json());
+    } catch (err) {
+      setDiagnosis({ ok: false, message: String(err.message || err) });
+    } finally {
+      setDiagnosing(false);
     }
   }
 
@@ -198,6 +214,70 @@ export default function SetupPage() {
             ))}
           </div>
         ) : null}
+
+        <section className="card">
+          <h2><span className="step">0</span> Check the saved connection</h2>
+          <p className="muted">
+            Tries the variables this deployment already has. Use it when the dashboard reports a
+            Zoho error: it says which part is refused and, if the token was issued in another data
+            centre, which one. Secrets are never shown — only lengths and prefixes.
+          </p>
+          <button type="button" onClick={diagnose} disabled={diagnosing}>
+            {diagnosing ? 'Asking Zoho…' : 'Check the saved connection'}
+          </button>
+
+          {diagnosis ? (
+            <div className={`alert ${diagnosis.ok ? 'good' : 'bad'}`}>
+              <b>{diagnosis.message || diagnosis.error}</b>
+
+              {diagnosis.fix ? (
+                <div className="copybox block" style={{ marginTop: 10 }}>
+                  <pre>{diagnosis.fix}</pre>
+                  <button type="button" onClick={() => copy(diagnosis.fix, 'fix')}>
+                    {copied === 'fix' ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              ) : null}
+
+              {diagnosis.checklist ? (
+                <ul className="checklist">
+                  {diagnosis.checklist.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              ) : null}
+
+              {diagnosis.notes && diagnosis.notes.length ? (
+                <ul className="checklist">
+                  {diagnosis.notes.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              ) : null}
+
+              {diagnosis.shape ? (
+                <table className="shape">
+                  <tbody>
+                    {[
+                      ['ZOHO_CLIENT_ID', diagnosis.shape.clientId],
+                      ['ZOHO_CLIENT_SECRET', diagnosis.shape.clientSecret],
+                      ['ZOHO_REFRESH_TOKEN', diagnosis.shape.refreshToken]
+                    ].map(([name, info]) => (
+                      <tr key={name}>
+                        <td>{name}</td>
+                        <td>
+                          {info && info.set
+                            ? `${info.length} chars · ${info.prefix}…${info.suffix}${info.hadWhitespace ? ' · has stray whitespace' : ''}`
+                            : 'not set'}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr>
+                      <td>ZOHO_ACCOUNTS_HOST</td>
+                      <td>{diagnosis.shape.accountsHost}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
 
         <section className="card">
           <h2><span className="step">1</span> Create the Self Client</h2>

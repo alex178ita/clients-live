@@ -22,6 +22,20 @@ const COLUMNS = [
   { key: 'domain', label: 'Domain checked' }
 ];
 
+// Where the probed domain came from. A domain read out of the CRM gets no badge
+// — that is the normal case; the badges mark the ones still to fix.
+const SOURCE_BADGE = {
+  guess: {
+    label: 'guessed',
+    title: 'No Website in the CRM: this domain was guessed from the client name and may well be wrong'
+  },
+  override: {
+    label: 'map',
+    title: 'No Website in the CRM: falling back to an unverified entry in config/domain-overrides.json'
+  },
+  skipped: { label: 'skipped', title: 'Left out of the live check on purpose' }
+};
+
 const CRM_BASE = process.env.NEXT_PUBLIC_CRM_BASE_URL || 'https://crm.zoho.eu/crm/tab/Potentials';
 
 function formatDate(value) {
@@ -44,6 +58,20 @@ function statusRank(status) {
   if (status === 'offline') return 1;
   if (status === 'unknown') return 2;
   return 3;
+}
+
+// The tooltip is not enough when a whole column is n/d: the reason belongs on
+// the row, short enough to read at a glance.
+function shortReason(reason) {
+  const text = String(reason || '');
+  if (/bot protection/i.test(text)) return 'blocked';
+  const http = text.match(/HTTP (\d{3})/);
+  if (http) return http[1];
+  if (/timeout/i.test(text)) return 'timeout';
+  if (/no domain/i.test(text)) return 'no domain';
+  if (/ENOTFOUND|getaddrinfo|dns/i.test(text)) return 'DNS';
+  if (/certificate|SSL|TLS/i.test(text)) return 'TLS';
+  return 'unreachable';
 }
 
 function chunk(list, size) {
@@ -404,7 +432,7 @@ export default function Page() {
             <label htmlFor="source">Domain from</label>
             <select id="source" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
               <option value="all">All</option>
-              <option value="override">Manual map</option>
+              <option value="override">Fallback map</option>
               <option value="deal">Deal website</option>
               <option value="account">Account website</option>
               <option value="guess">Guessed from name</option>
@@ -486,6 +514,9 @@ export default function Page() {
                     >
                       {row.status === 'live' ? 'live' : row.status === 'offline' ? 'offline' : row.status === 'unknown' ? 'n/d' : '…'}
                     </span>
+                    {row.status === 'unknown' && row.live && row.live.reason ? (
+                      <span className="why">{shortReason(row.live.reason)}</span>
+                    ) : null}
                   </td>
                   <td>{row.channel}</td>
                   <td>{row.partner || '—'}</td>
@@ -503,8 +534,14 @@ export default function Page() {
                         <a className="domain" href={`https://${row.domain}`} target="_blank" rel="noreferrer">
                           {row.domain}
                         </a>
-                        {row.domainSource === 'guess' ? <span className="dot guess" title="Domain guessed from the client name" /> : null}
-                        {row.domainSource === 'override' ? <span className="dot override" title="Domain from the manual map" /> : null}
+                        {SOURCE_BADGE[row.domainSource] ? (
+                          <span
+                            className={`src ${row.domainSource}`}
+                            title={SOURCE_BADGE[row.domainSource].title}
+                          >
+                            {SOURCE_BADGE[row.domainSource].label}
+                          </span>
+                        ) : null}
                       </>
                     ) : (
                       <span style={{ color: 'var(--amber)' }}>not resolved</span>
@@ -521,7 +558,7 @@ export default function Page() {
           <span className="legend">
             <span><b>live</b> = x-optimized-by Kleecks header and/or KL-* classes on the body</span>
             <span><b>n/d</b> = the home page could not be read (timeout, bot protection, no domain)</span>
-            <span><span className="dot guess" /> domain guessed from the name</span>
+            <span>no badge on the domain = read from the CRM; <b>guessed</b> / <b>map</b> = Website still missing in Zoho</span>
             <a className="domain" href="/setup">Zoho connection setup</a>
           </span>
         </div>
