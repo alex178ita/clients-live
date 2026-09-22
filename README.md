@@ -98,12 +98,18 @@ been told — usually `HTTP 403 — blocked by the site's bot protection`.
 2. Add `LOCAL_CHECK_TOKEN` — any long random string; it is the shared secret
    between the script and the app, and the only thing guarding that endpoint.
 3. Redeploy.
-4. On the machine that will run it, keep a copy of this folder, `npm install`
-   once, then:
+4. On the machine that will run it, keep a copy of this folder. Nothing to
+   install: the script and `lib/livecheck.js` use only Node built-ins, so Node 18
+   or newer is all it needs. **Run it from inside that folder**, since it loads
+   the detection logic from `../lib` relative to itself:
 
 ```bash
+cd ~/Downloads/won-clients-live      # wherever the folder actually is
 APP_URL=https://your-deployment.vercel.app LOCAL_CHECK_TOKEN=the-same-string node scripts/local-check.cjs --verbose
 ```
+
+`Cannot find module '.../scripts/local-check.cjs'` means the shell is somewhere
+else — `cd` into the folder first. No `sudo` is needed for any of this.
 
 `--dry-run` prints the outcome without posting it. The script asks the app which
 clients to check, so the CRM stays the single source of truth for the targets and

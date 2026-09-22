@@ -49,10 +49,15 @@ async function main() {
   if (res.status === 401) fail('The token was refused. Check LOCAL_CHECK_TOKEN here and on Vercel.');
   if (!res.ok) fail(`The dashboard answered ${res.status}: ${(await res.text()).slice(0, 300)}`);
 
-  const { targets, lastRunAt, blobConfigured } = await res.json();
+  const { targets, lastRunAt, blobConfigured, storageMode } = await res.json();
   console.log(`${targets.length} clients.`);
   if (blobConfigured === false) {
-    console.warn('! BLOB_READ_WRITE_TOKEN is not set on Vercel: the results cannot be stored yet.');
+    console.warn(
+      '! No Blob store is connected on Vercel (neither BLOB_STORE_ID nor BLOB_READ_WRITE_TOKEN):\n' +
+        '  connect one to the project from the dashboard and redeploy, or the results have nowhere to go.'
+    );
+  } else if (storageMode) {
+    console.log(`Storage: Blob via ${storageMode === 'oidc' ? 'BLOB_STORE_ID (OIDC)' : 'read-write token'}.`);
   }
   if (lastRunAt) console.log(`Previous run: ${new Date(lastRunAt).toLocaleString()}`);
 
