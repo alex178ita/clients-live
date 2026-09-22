@@ -291,7 +291,8 @@ export default function Page() {
     const alarms = filtered.filter((r) => r.alert).length;
     const lost = filtered.filter((r) => r.lost).length;
     const fromScript = filtered.filter((r) => r.live && r.live.source === 'local').length;
-    return { total, liveCount, offline, unknown, alarms, lost, fromScript };
+    const fromCrm = filtered.filter((r) => r.live && r.live.source === 'crm').length;
+    return { total, liveCount, offline, unknown, alarms, lost, fromScript, fromCrm };
   }, [filtered]);
 
   const localAge = daysSince(localCheck && localCheck.runAt);
@@ -512,6 +513,14 @@ export default function Page() {
               <b>{stats.fromScript}</b> via script
             </span>
           ) : null}
+          {stats.fromCrm > 0 ? (
+            <span
+              className="pill crm"
+              title="Sites neither Vercel nor the script could read: live inferred from a licence still running and not lost"
+            >
+              <b>{stats.fromCrm}</b> via CRM
+            </span>
+          ) : null}
           {localCheck && localCheck.runAt ? (
             <span
               className={`pill ${localAge !== null && localAge > LOCAL_STALE_DAYS ? 'stale' : ''}`}
@@ -575,7 +584,7 @@ export default function Page() {
                   </td>
                   <td>
                     <span
-                      className={`status ${row.status}`}
+                      className={`status ${row.status}${row.live && row.live.source === 'crm' ? ' crm' : ''}`}
                       title={
                         row.live
                           ? (row.live.signals && row.live.signals.length
@@ -599,6 +608,21 @@ export default function Page() {
                         }
                       >
                         via script{localAge !== null && localAge > LOCAL_STALE_DAYS ? ` · ${localAge}d` : ''}
+                      </span>
+                    ) : null}
+                    {row.live && row.live.source === 'crm' ? (
+                      <span
+                        className="why crm"
+                        title={
+                          'Neither Vercel nor the local script could read the site.\n' +
+                          `Licence runs to ${row.live.licenceEnd} and is not flagged as lost, so the client is live by contract.\n` +
+                          (row.crmActiveFlag === false
+                            ? '⚠ "Client Active?" on the account is unticked — worth a look.\n'
+                            : '') +
+                          (row.live.blockedReason ? `From Vercel: ${row.live.blockedReason}` : '')
+                        }
+                      >
+                        via CRM{row.crmActiveFlag === false ? ' ⚠' : ''}
                       </span>
                     ) : null}
                   </td>
@@ -647,6 +671,7 @@ export default function Page() {
             <span><b>n/d</b> = the home page could not be read (timeout, bot protection, no domain)</span>
             <span>no badge on the domain = read from the CRM; <b>guessed</b> / <b>map</b> = Website still missing in Zoho</span>
             <span><b>via script</b> = the site refuses Vercel, this answer comes from the run on a normal connection</span>
+            <span><b>via CRM</b> = nobody could read the site: licence still running and not lost, so live by contract (hollow pill)</span>
             <a className="domain" href="/setup">Zoho connection setup</a>
           </span>
         </div>

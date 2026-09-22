@@ -238,6 +238,13 @@ td.client.unknown { color: var(--amber); }
 .status.unknown { background: var(--amber-soft); color: var(--amber); }
 .status.pending { background: #eef1f5; color: var(--ink-soft); }
 
+/* Live inferred from the licence, not read on the site: same green, hollow, so
+   the eye can tell a measured answer from a deduced one at a glance. */
+.status.live.crm {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--green);
+}
+
 .alarm-mark { color: var(--amber); font-size: 15px; }
 
 .lost-yes { color: var(--red); font-weight: 600; }
@@ -470,3 +477,6 @@ table.shape td:first-child { color: var(--ink); width: 190px; }
 
 .pill.stale { border-color: #f0d9ae; background: var(--amber-soft); color: var(--amber); }
 .pill.stale b { color: var(--amber); }
+
+.why.crm { color: var(--ink-soft); }
+.pill.crm b { color: var(--ink-soft); }

@@ -91,6 +91,29 @@ answer stands, because it is fresher; the local result replaces only the rows
 that came back `unknown`. Hovering a **via script** row shows what Vercel had
 been told — usually `HTTP 403 — blocked by the site's bot protection`.
 
+## The CRM fallback
+
+A few sites answer neither probe: a WAF that wants a real browser, a domain that
+resolves only from inside the client's own network. For those the licence is the
+last piece of evidence available. A client that is won, **not** flagged lost, and
+whose last licence deal runs past today is live by contract, so the row shows a
+hollow green `live` pill with **via CRM** under it.
+
+The inference is one-directional on purpose. An expired or lost licence is never
+turned into `offline`: a site still running after a lost licence is exactly what
+the ▲ alert exists for, and deducing `offline` would bury it. And because the
+rule requires the lost flag to be clear, a **via CRM** row can never raise ▲.
+
+The order is always probe first: Vercel, then the local script, then — only if
+both came back blind — the licence. The account field `Kleecks_Active`
+("Client Active?") is read along with the rest and shown in the tooltip as a
+cross-check; when it disagrees with the licence dates the badge reads
+**via CRM ⚠**. Nothing in the dashboard is decided by that field.
+
+In the Excel export these rows carry `CRM licence (not read)` in *Checked from*
+and their client name is italic, so a filtered sheet still shows which greens
+were measured and which were deduced.
+
 ### Setting it up
 
 1. In the Vercel dashboard: **Storage → Blob → Create**. Connecting it to the

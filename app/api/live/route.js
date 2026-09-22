@@ -3,6 +3,7 @@ import { isAuthorised } from '../../../lib/auth';
 import { getRows } from '../../../lib/crmcache';
 import { checkAll } from '../../../lib/livecheck';
 import { readLocalChecks } from '../../../lib/localchecks';
+import { crmLiveGuess, today } from '../../../lib/crmstatus';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -44,6 +45,17 @@ export async function POST(request) {
         runAt: local.runAt,
         blockedReason: results[key].reason || null
       };
+    }
+
+    // Still blind after both probes: fall back on the licence. Only ever
+    // upwards — see lib/crmstatus.js.
+    const day = today();
+    for (const key of Object.keys(results)) {
+      if (results[key].status !== 'unknown') continue;
+      const guess = crmLiveGuess(byKey.get(key), day);
+      if (!guess) continue;
+
+      results[key] = { ...guess, blockedReason: results[key].reason || null };
     }
 
     return NextResponse.json({ results, localRunAt: local.runAt });

@@ -93,7 +93,12 @@ export async function POST(request) {
       lostLabel: row.lost ? 'Yes' : 'No',
       domain: row.domain || '',
       domainSource: row.domainSource || '',
-      checkedFrom: row.live && row.live.source === 'local' ? 'local script' : 'Vercel',
+      checkedFrom:
+        row.live && row.live.source === 'local'
+          ? 'local script'
+          : row.live && row.live.source === 'crm'
+            ? 'CRM licence (not read)'
+            : 'Vercel',
       signals: row.live && row.live.signals && row.live.signals.length
         ? row.live.signals.join(' | ')
         : (row.live && row.live.reason) || '',
@@ -101,8 +106,11 @@ export async function POST(request) {
     });
 
     const colour = status === 'live' ? GREEN : status === 'offline' ? RED : AMBER;
-    added.getCell('clientName').font = { bold: true, color: { argb: colour } };
-    added.getCell('statusLabel').font = { bold: true, color: { argb: colour } };
+    // Inferred from the licence rather than read on the site: italic, so a
+    // filtered sheet still shows which greens are deductions.
+    const inferred = Boolean(row.live && row.live.source === 'crm');
+    added.getCell('clientName').font = { bold: true, italic: inferred, color: { argb: colour } };
+    added.getCell('statusLabel').font = { bold: true, italic: inferred, color: { argb: colour } };
     if (row.alert) {
       added.getCell('alert').font = { bold: true, color: { argb: AMBER } };
       added.getCell('alert').alignment = { horizontal: 'center' };
