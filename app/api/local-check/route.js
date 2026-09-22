@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getRows } from '../../../lib/crmcache';
-import { readLocalChecks, writeLocalChecks, configured, storageMode } from '../../../lib/localchecks';
+import { readLocalChecks, writeLocalChecks, configured, storageMode, blobAccess } from '../../../lib/localchecks';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -46,7 +46,8 @@ export async function GET(request) {
       crmFetchedAt: new Date(fetchedAt).toISOString(),
       lastRunAt: stored.runAt,
       blobConfigured: configured(),
-      storageMode: storageMode()
+      storageMode: storageMode(),
+      blobAccess: blobAccess()
     });
   } catch (error) {
     return NextResponse.json({ error: String(error.message || error) }, { status: 500 });
