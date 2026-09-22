@@ -52,14 +52,62 @@ export async function GET(request) {
   // 1. the configured data centre
   const primary = await tryRefresh(accountsHost, clientId, clientSecret, refreshToken);
   if (primary.ok) {
+    // Refreshing is only half the story. "COQL failed (401): invalid oauth
+    // token" happens with a perfectly good refresh token when the access token
+    // is spent against the wrong API host, or when the scopes on it do not
+    // cover COQL — so the diagnosis has to make a real call.
+    const apiHost = env('ZOHO_API_HOST', 'https://www.zohoapis.eu').replace(/\/+$/, '');
+    const suggested = (primary.apiDomain || '').replace(/\/+$/, '');
+
+    const call = await tryCoql(apiHost, primary.accessToken);
+    if (call.ok) {
+      return NextResponse.json({
+        ok: true,
+        stage: 'api',
+        message: `The saved credentials work: refreshed on ${accountsHost}, read ${call.rows} row(s) from ${apiHost}.`,
+        shape,
+        notes,
+        apiHost,
+        apiDomain: primary.apiDomain,
+        scope: primary.scope
+      });
+    }
+
+    // The refresh answer names the host this token belongs to. When it is not
+    // the one configured, that is the whole bug.
+    const fallback = suggested && suggested !== apiHost ? await tryCoql(suggested, primary.accessToken) : null;
+    if (fallback && fallback.ok) {
+      return NextResponse.json({
+        ok: false,
+        stage: 'wrong-api-host',
+        message: `The token refreshes fine but belongs to ${suggested}, while ZOHO_API_HOST is set to ${apiHost}. Zoho answers "invalid oauth token" to a token used on the wrong host.`,
+        fix: `ZOHO_API_HOST=${suggested}`,
+        shape,
+        notes,
+        apiHost,
+        apiDomain: primary.apiDomain,
+        scope: primary.scope,
+        apiError: call.error
+      });
+    }
+
     return NextResponse.json({
-      ok: true,
-      stage: 'refresh',
-      message: `The saved credentials work against ${accountsHost}.`,
+      ok: false,
+      stage: 'api-refused',
+      message:
+        `The refresh works on ${accountsHost}, but ${apiHost} refused the access token it issued. ` +
+        'Either the token was revoked in the API console after it was issued, or its scopes do not cover COQL.',
       shape,
       notes,
+      apiHost,
       apiDomain: primary.apiDomain,
-      scope: primary.scope
+      scope: primary.scope,
+      apiError: call.error,
+      checklist: [
+        'Does the scope line above contain ZohoCRM.coql.READ? Without it every COQL call is refused.',
+        'Was the Self Client secret regenerated, or the token revoked, since this refresh token was issued? Re-run /setup from step 1.',
+        'Is ZOHO_API_HOST the host named in apiDomain above? They must match.'
+      ]
     });
   }
 
@@ -132,6 +180,27 @@ function checklistFor(code) {
   return ['Re-run the /setup page from step 1 with a fresh grant code.'];
 }
 
+// The smallest possible COQL read: enough to prove the token is accepted, and
+// it touches nothing.
+async function tryCoql(apiHost, accessToken) {
+  try {
+    const res = await fetch(`${apiHost}/crm/v7/coql`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Zoho-oauthtoken ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ select_query: 'select id from Deals limit 1' })
+    });
+    if (res.status === 204) return { ok: true, rows: 0 };
+    const json = await res.json().catch(() => ({}));
+    if (res.ok) return { ok: true, rows: (json.data || []).length };
+    return { ok: false, error: `HTTP ${res.status} ${json.code || ''} ${json.message || ''}`.trim() };
+  } catch (error) {
+    return { ok: false, error: String(error.message || error) };
+  }
+}
+
 async function tryRefresh(accountsHost, clientId, clientSecret, refreshToken) {
   try {
     const params = new URLSearchParams({
@@ -143,7 +212,12 @@ async function tryRefresh(accountsHost, clientId, clientSecret, refreshToken) {
     const res = await fetch(`${accountsHost}/oauth/v2/token?${params.toString()}`, { method: 'POST' });
     const json = await res.json().catch(() => ({}));
     if (json.access_token) {
-      return { ok: true, apiDomain: json.api_domain || null, scope: json.scope || null };
+      return {
+        ok: true,
+        accessToken: json.access_token,
+        apiDomain: json.api_domain || null,
+        scope: json.scope || null
+      };
     }
     return { ok: false, error: json.error || `HTTP ${res.status}` };
   } catch (error) {
