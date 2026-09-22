@@ -61,6 +61,17 @@ export async function GET(request) {
 
     const call = await tryCoql(apiHost, primary.accessToken);
     if (call.ok) {
+      // Same token, one step further: a custom field on Accounts reached
+      // through the lookup. Zoho answers this with 401 INVALID_TOKEN — not a
+      // scope error — when the scopes cover Deals only, which reads exactly
+      // like a dead token. Worth naming explicitly, because it cost an
+      // afternoon once.
+      const lookup = await tryCoql(
+        apiHost,
+        primary.accessToken,
+        'select id, Account_Name.Kleecks_Active from Deals limit 1'
+      );
+
       return NextResponse.json({
         ok: true,
         stage: 'api',
@@ -69,7 +80,10 @@ export async function GET(request) {
         notes,
         apiHost,
         apiDomain: primary.apiDomain,
-        scope: primary.scope
+        scope: primary.scope,
+        accountsCustomField: lookup.ok
+          ? 'readable — this token can also read custom fields on Accounts'
+          : `not readable (${lookup.error}) — add ZohoCRM.modules.accounts.READ if you ever want it`
       });
     }
 
@@ -182,7 +196,7 @@ function checklistFor(code) {
 
 // The smallest possible COQL read: enough to prove the token is accepted, and
 // it touches nothing.
-async function tryCoql(apiHost, accessToken) {
+async function tryCoql(apiHost, accessToken, query = 'select id from Deals limit 1') {
   try {
     const res = await fetch(`${apiHost}/crm/v7/coql`, {
       method: 'POST',
@@ -190,7 +204,7 @@ async function tryCoql(apiHost, accessToken) {
         Authorization: `Zoho-oauthtoken ${accessToken}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ select_query: 'select id from Deals limit 1' })
+      body: JSON.stringify({ select_query: query })
     });
     if (res.status === 204) return { ok: true, rows: 0 };
     const json = await res.json().catch(() => ({}));

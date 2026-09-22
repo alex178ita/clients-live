@@ -105,10 +105,16 @@ the ▲ alert exists for, and deducing `offline` would bury it. And because the
 rule requires the lost flag to be clear, a **via CRM** row can never raise ▲.
 
 The order is always probe first: Vercel, then the local script, then — only if
-both came back blind — the licence. The account field `Kleecks_Active`
-("Client Active?") is read along with the rest and shown in the tooltip as a
-cross-check; when it disagrees with the licence dates the badge reads
-**via CRM ⚠**. Nothing in the dashboard is decided by that field.
+both came back blind — the licence.
+
+The CRM does have a `Kleecks_Active` field ("Client Active?") on the **Accounts**
+module, and reading it through the deal's lookup was tried once. Don't: this
+token's scopes cover Deals, and COQL answers a custom field on another module
+with `401 INVALID_TOKEN` — not a scope error — so the whole dashboard goes down
+with what looks like a dead token. It would need `ZohoCRM.modules.accounts.READ`
+on the Self Client, and it is worth nothing here: the fallback reads the licence
+dates, which are on the deal. `/api/setup/diagnose` reports whether the current
+token could read it, under `accountsCustomField`.
 
 In the Excel export these rows carry `CRM licence (not read)` in *Checked from*
 and their client name is italic, so a filtered sheet still shows which greens
