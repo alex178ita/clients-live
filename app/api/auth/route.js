@@ -18,7 +18,11 @@ export async function POST(request) {
     return NextResponse.json({ ok: false, error: 'Wrong password' }, { status: 401 });
   }
 
-  const response = NextResponse.json({ ok: true });
+  // Only the embedded copy gets the token in the body. Everywhere else the
+  // httpOnly cookie stays the only carrier, which is the safer default: a token
+  // readable by JavaScript is worth exactly as much as the password just typed.
+  const embed = body.embed === true;
+  const response = NextResponse.json(embed ? { ok: true, token: sessionToken() } : { ok: true });
   response.cookies.set(COOKIE_NAME, sessionToken(), {
     httpOnly: true,
     sameSite: 'none',

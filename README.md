@@ -91,6 +91,35 @@ answer stands, because it is fresher; the local result replaces only the rows
 that came back `unknown`. Hovering a **via script** row shows what Vercel had
 been told — usually `HTTP 403 — blocked by the site's bot protection`.
 
+## Inside Zoho CRM (Web Tab)
+
+Setup → Developer Space → Web Tabs → Create, type **URL**, address:
+
+```
+https://clients-live.vercel.app/?embed=1
+```
+
+`embed=1` drops the Kleecks logo and tightens the padding: the CRM already
+supplies a header, and the iframe is short enough that repeating ours costs a
+third of the table. The page detects an iframe on its own too, so a Web Tab
+created without the parameter still renders compact.
+
+Two things make the embed work, and both are easy to break by accident:
+
+- `frame-ancestors` in `next.config.js` lists the Zoho data centres. Without it
+  the browser refuses to render the iframe at all, with a console error and a
+  blank tab.
+- The session **cookie is third-party** in there. Safari blocks it outright,
+  Chrome blocks it whenever third-party cookies are restricted, and the symptom
+  is a login that appears to work followed by 401s on every call. So the
+  embedded copy also keeps the token in `sessionStorage` and sends it as the
+  `X-WCL-Session` header; the server accepts either. The token is only handed to
+  the page when it declares itself embedded — elsewhere the httpOnly cookie
+  stays the only carrier.
+
+The password is asked once per browser session rather than once per day, since
+`sessionStorage` dies with the tab.
+
 ## The CRM fallback
 
 A few sites answer neither probe: a WAF that wants a real browser, a domain that

@@ -66,12 +66,31 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Expected { results: [...] }' }, { status: 400 });
   }
 
+  // The URL each answer was obtained on, rebuilt here from the CRM rather than
+  // taken from the script's payload. A Website corrected in Zoho after a run
+  // leaves that run's verdict attached to a URL nobody checks any more, and
+  // without this the dashboard would keep showing it — an offline measured on
+  // last week's domain, link and all.
+  let targetByKey = new Map();
+  try {
+    const { rows } = await getRows();
+    targetByKey = new Map(
+      rows
+        .filter((row) => row.probeCandidates && row.probeCandidates.length > 0)
+        .map((row) => [row.key, row.probeCandidates[0]])
+    );
+  } catch (error) {
+    // Storing without targets is still better than losing the run; the merge
+    // treats a missing target as "cannot vouch for it".
+  }
+
   const results = {};
   for (const entry of incoming) {
     if (!entry || !entry.key) continue;
     const status = ['live', 'offline', 'unknown'].includes(entry.status) ? entry.status : 'unknown';
     results[String(entry.key)] = {
       status,
+      target: targetByKey.get(String(entry.key)) || null,
       signals: Array.isArray(entry.signals) ? entry.signals.slice(0, 12).map(String) : [],
       reason: entry.reason ? String(entry.reason).slice(0, 300) : null,
       httpStatus: Number.isFinite(entry.httpStatus) ? entry.httpStatus : null,

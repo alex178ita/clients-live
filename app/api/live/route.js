@@ -41,6 +41,13 @@ export async function POST(request) {
       const fromScript = local.results[key];
       if (!fromScript || fromScript.status === 'unknown') continue;
 
+      // Only if the run checked the URL this client resolves to today. A
+      // Website fixed in Zoho since then makes that verdict worthless, and
+      // showing it anyway is how a client ends up reading "offline" on a
+      // domain the CRM no longer mentions.
+      const currentTarget = (byKey.get(key) && byKey.get(key).probeCandidates) || [];
+      if (!fromScript.target || fromScript.target !== currentTarget[0]) continue;
+
       results[key] = {
         ...fromScript,
         source: 'local',

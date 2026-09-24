@@ -97,6 +97,33 @@ function daysSince(iso) {
   return Math.floor((Date.now() - then) / 86400000);
 }
 
+// The Web Tab copy cannot rely on its cookie (third-party inside Zoho's
+// iframe), so it keeps the session token in sessionStorage and sends it as a
+// header. Read at call time, not from state, so the very first request after a
+// reload already carries it.
+const TOKEN_KEY = 'wcl_session_token';
+
+function storedToken() {
+  try {
+    return sessionStorage.getItem(TOKEN_KEY) || '';
+  } catch (err) {
+    return '';
+  }
+}
+
+function authHeaders(extra) {
+  const token = storedToken();
+  return { ...(extra || {}), ...(token ? { 'X-WCL-Session': token } : {}) };
+}
+
+function isEmbedded() {
+  try {
+    return new URLSearchParams(window.location.search).get('embed') === '1' || window.self !== window.top;
+  } catch (err) {
+    return false;
+  }
+}
+
 function chunk(list, size) {
   const out = [];
   for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
@@ -132,9 +159,17 @@ export default function Page() {
   const [yearsPreset, setYearsPreset] = useState(false);
   const [sort, setSort] = useState({ key: 'clientName', dir: 'asc' });
   const [exporting, setExporting] = useState(false);
+  // Inside the Zoho Web Tab the page sits under the CRM's own header, so the
+  // masthead is repeated chrome eating a third of a short iframe. Set after
+  // mount: the server render must not differ from the first client render.
+  const [embedded, setEmbedded] = useState(false);
 
   useEffect(() => {
-    fetch('/api/auth')
+    setEmbedded(isEmbedded());
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/auth', { headers: authHeaders() })
       .then((r) => r.json())
       .then((json) => {
         setAuthorised(Boolean(json.authorised));
@@ -157,7 +192,7 @@ export default function Page() {
         try {
           const res = await fetch('/api/live', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ keys: batches[index], force, since })
           });
           const json = await res.json();
@@ -178,7 +213,7 @@ export default function Page() {
     setLoadingCrm(true);
     setLoadError('');
     try {
-      const res = await fetch(`/api/clients${force ? '?force=1' : ''}`);
+      const res = await fetch(`/api/clients${force ? '?force=1' : ''}`, { headers: authHeaders() });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Could not load the CRM data');
       setRows(json.rows || []);
@@ -200,12 +235,22 @@ export default function Page() {
   async function submitPassword(event) {
     event.preventDefault();
     setAuthError('');
+    const embedded = isEmbedded();
     const res = await fetch('/api/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password })
+      body: JSON.stringify({ password, embed: embedded })
     });
     if (res.ok) {
+      const json = await res.json().catch(() => ({}));
+      if (json.token) {
+        try {
+          sessionStorage.setItem(TOKEN_KEY, json.token);
+        } catch (err) {
+          // Private mode with storage blocked: the cookie is then the only
+          // carrier, and the gate will simply ask again on the next load.
+        }
+      }
       setPassword('');
       setAuthorised(true);
     } else {
@@ -222,9 +267,14 @@ export default function Page() {
         live: result,
         status,
         statusRank: statusRank(status),
-        // Kleecks still answering on a site whose licence is over — lost or
-        // simply expired — is the anomaly the triangle is there to catch.
-        alert: Boolean((row.lost || row.expired) && status === 'live')
+        // A licence that ended while its renewal sits in Closing has not gone
+        // anywhere: not churned, and Kleecks still running on the site is
+        // exactly right, so no triangle and no hiding.
+        churned: Boolean(row.expired && !row.renewalPending),
+        // Kleecks still answering on a site whose licence is over — lost, or
+        // expired with no renewal in sight — is the anomaly the triangle is
+        // there to catch.
+        alert: Boolean((row.lost || (row.expired && !row.renewalPending)) && status === 'live')
       };
     });
   }, [rows, live]);
@@ -267,8 +317,8 @@ export default function Page() {
       if (statusFilter !== 'all' && row.status !== statusFilter) return false;
       if (lostFilter === 'yes' && !row.lost) return false;
       if (lostFilter === 'no' && row.lost) return false;
-      if (expiredFilter === 'yes' && !row.expired) return false;
-      if (expiredFilter === 'no' && row.expired) return false;
+      if (expiredFilter === 'yes' && !row.churned) return false;
+      if (expiredFilter === 'no' && row.churned) return false;
       if (sourceFilter !== 'all' && row.domainSource !== sourceFilter) return false;
 
       if (from || to) {
@@ -330,7 +380,7 @@ export default function Page() {
     try {
       const res = await fetch('/api/export', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           rows: sorted,
           meta: {
@@ -418,13 +468,13 @@ export default function Page() {
 
   return (
     <>
-      <header className="masthead">
-        <img src="/kleecks-logo-white.png" alt="Kleecks" />
+      <header className={`masthead${embedded ? ' compact' : ''}`}>
+        {embedded ? null : <img src="/kleecks-logo-white.png" alt="Kleecks" />}
         <h1>Won Clients &amp; Kleecks Live Status</h1>
         <p className="version">{buildStamp()}</p>
       </header>
 
-      <main>
+      <main className={embedded ? 'embedded' : undefined}>
         <div className="toolbar">
           <div className="field grow">
             <label htmlFor="search">Search</label>
@@ -693,6 +743,18 @@ export default function Page() {
                     title={row.expired ? 'The last licence deal ran to its natural end and was not renewed' : undefined}
                   >
                     {row.expired ? 'Yes' : 'No'}
+                    {row.renewalPending ? (
+                      <span
+                        className="src override"
+                        title={
+                          'A renewal for this client is in Closing' +
+                          (row.renewalEnd ? `, covering to ${row.renewalEnd}` : '') +
+                          '. Not churned: kept in the list and no ▲.'
+                        }
+                      >
+                        renewal
+                      </span>
+                    ) : null}
                   </td>
                   <td>
                     {row.domain ? (
@@ -742,7 +804,8 @@ export default function Page() {
             <span>no badge on the domain = read from the CRM; <b>guessed</b> / <b>map</b> = Website still missing in Zoho</span>
             <span><b>via script</b> = the site refuses Vercel, this answer comes from the run on a normal connection</span>
             <span><b>via CRM</b> = nobody could read the site: licence still running and not lost, so live by contract (hollow pill)</span>
-            <span><b>Expired</b> = the last licence ran to its natural end; hidden by default, and ▲ if Kleecks is still up</span>
+            <span><b>Expired</b> = the last won licence ran out; hidden by default, and ▲ if Kleecks is still up</span>
+            <span><b>renewal</b> = a renewal deal is in Closing, so the client is not churned and stays in the list</span>
             <span><b>partner?</b> = this account is a partner elsewhere: the deal is probably missing Contact Holder or Final Client</span>
             <a className="domain" href="/setup">Zoho connection setup</a>
           </span>

@@ -486,3 +486,14 @@ table.shape td:first-child { color: var(--ink); width: 190px; }
 
 /* A licence that simply ran out: a fact, not a failure — amber, not red. */
 .expired-yes { color: var(--amber); font-weight: 600; }
+
+/* ---------- Zoho CRM Web Tab ---------- */
+
+/* The CRM supplies its own header and the iframe is short, so the masthead
+   shrinks to a single line and the table gets the height back. */
+.masthead.compact { padding: 10px 16px 8px; }
+.masthead.compact h1 { font-size: 16px; }
+.masthead.compact .version { font-size: 11px; }
+
+main.embedded { padding: 12px 16px 20px; }
+main.embedded .table-wrap { max-height: calc(100vh - 235px); }
